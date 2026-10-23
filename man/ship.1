@@ -1,0 +1,196 @@
+.TH SHIP 1 "October 2026" "ship 0.1.0" "User Commands"
+.SH NAME
+ship \- put an HTML page on one of your Cloudflare domains
+.SH SYNOPSIS
+.B ship
+.I file.html
+.RI [ target ]
+.RB [ \-\-force ]
+.br
+.B ship
+.I folder/
+.RI [ target ]
+.RB [ \-\-force ]
+.br
+.B ship ls
+.br
+.B ship rm
+.I target
+.RB [ \-y ]
+.br
+.B ship setup
+.SH DESCRIPTION
+.B ship
+takes an HTML file (or a folder) from your computer and puts it online at
+a domain you own. It uploads the files, connects the domain, and waits
+until the page answers. Then it prints the link and copies it to your
+clipboard.
+.PP
+Running the same command again replaces the page. The link stays the same.
+.SH TARGETS
+The
+.I target
+says where the page goes. It can be:
+.TP
+.B demo.example.com
+A whole hostname. The page is at https://demo.example.com/
+.TP
+.B example.com/reports/q3
+A path on a hostname. The page is at https://example.com/reports/q3/
+.TP
+.I (nothing)
+A random, hard-to-guess link on your default hostname (chosen during
+.BR "ship setup" ),
+named after the file. For example, https://p.example.com/q3-report-8f3a1c/
+.SH COMMANDS
+.TP
+.BI "ship " "file.html target"
+Publish one HTML file. It is renamed to index.html. Images, CSS and other
+files it links to are uploaded too, if they sit in the same folder or
+below it. Files elsewhere, like
+.IR ../logo.png ,
+are skipped with a warning.
+.TP
+.BI "ship " "folder/ target"
+Publish a whole folder. It needs an
+.I index.html
+at the top. Hidden files such as
+.I .DS_Store
+and
+.I .git
+are skipped.
+.TP
+.B ship ls
+List everything you have published, newest first.
+.TP
+.BI "ship rm " target
+Delete a page. If the target is a whole hostname, the hostname is also
+disconnected and its DNS record removed. Asks before deleting.
+.TP
+.B ship setup
+Save your Cloudflare API token and prepare the account (storage bucket
+and Worker). Run it once at the start, and again whenever you get a new
+token. It is safe to run any number of times.
+.SH OPTIONS
+.TP
+.B \-\-force
+Publish even if the hostname already points somewhere else. This
+.B deletes
+the hostname's existing DNS records. Without it,
+.B ship
+refuses, so you can't break a real website by mistake.
+.TP
+.BR \-y ", " \-\-yes
+With
+.BR "ship rm" :
+don't ask for confirmation.
+.TP
+.B \-\-help
+Show help for
+.B ship
+or for any command, e.g.
+.BR "ship rm \-\-help" .
+.SH EXAMPLES
+Put a page online at a random link:
+.PP
+.RS
+ship report.html
+.RE
+.PP
+Put it at a hostname of your choice:
+.PP
+.RS
+ship report.html demo.example.com
+.RE
+.PP
+Put it under a path:
+.PP
+.RS
+ship report.html example.com/reports/q3
+.RE
+.PP
+A file name with spaces needs quotes:
+.PP
+.RS
+ship "Q3 Report.html" demo.example.com
+.RE
+.PP
+Publish a folder of HTML, images and CSS:
+.PP
+.RS
+ship ./my-site/ app.example.com
+.RE
+.PP
+Update a page: run the same command again.
+.PP
+See what's online, then take one page down:
+.PP
+.RS
+ship ls
+.br
+ship rm demo.example.com
+.RE
+.SH TOKEN EXPIRY
+Your Cloudflare token has an expiry date.
+.B ship
+starts warning you 14 days before it, and stops working once it has passed.
+To renew:
+.IP 1. 4
+Go to https://dash.cloudflare.com/profile/api-tokens and either
+.B Roll
+the old token (same permissions, new value) or create a new one with the
+same permissions.
+.IP 2. 4
+Run
+.BR "ship setup" ,
+answer
+.B n
+when asked whether to use the saved token, and paste the new one.
+.PP
+Your published pages stay online the whole time. An expired token only
+stops you from publishing.
+.SH TROUBLESHOOTING
+.TP
+.B "Uploaded, but not answering yet"
+A brand-new hostname can take a few minutes to get its DNS record and
+HTTPS certificate. Check whether Cloudflare has the record:
+.RS
+.PP
+dig +short demo.example.com @1.1.1.1
+.PP
+If that shows addresses but the page doesn't load on your computer, your
+network cached an old "doesn't exist" answer. Try your phone on mobile
+data, or wait up to 30 minutes.
+.RE
+.TP
+.B "already has DNS records"
+The hostname is already in use. Pick another, or use
+.B \-\-force
+if you really want to replace what's there.
+.TP
+.B "token may have expired"
+See TOKEN EXPIRY above.
+.SH FILES
+.TP
+.I ~/.config/ship/config.json
+Settings: account, default hostname, bucket and Worker names.
+.TP
+.I macOS Keychain, entry \(dqship\(dq
+Your Cloudflare API token.
+.TP
+.B SHIP_CLOUDFLARE_TOKEN
+Environment variable. If set, it is used instead of the Keychain token.
+.SH HOW IT WORKS
+Every page is stored in one Cloudflare R2 bucket
+.RI ( ship\-sites ),
+in a folder named after its hostname. One Cloudflare Worker
+.RI ( ship\-router )
+serves all of them: it reads the hostname and path of each visit and
+returns the matching file. Publishing to a new hostname connects it to the
+Worker. Cloudflare then creates the DNS record and HTTPS certificate on
+its own.
+.PP
+Pages are public to anyone with the link, and they tell search engines
+not to index them.
+.SH SOURCE
+https://github.com/JoseUlisesQuevedo/ship
